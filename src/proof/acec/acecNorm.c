@@ -129,7 +129,7 @@ Vec_Int_t * Acec_BuildTree( Gia_Man_t * pNew, Gia_Man_t * p, Vec_Wec_t * vLeafLi
     Vec_Wec_t * vLeafMap = Vec_WecStart( Vec_WecSize(vLeafLits) );
     Vec_Int_t * vLevel, * vRootRanks;  
     int i, k, iLit, iLitNew;
-    // add roo literals
+    // add root literals
     if ( vRootLits )
         Vec_IntForEachEntry( vRootLits, iLit, i )
         {

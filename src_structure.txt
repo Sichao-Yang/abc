@@ -1,0 +1,128 @@
+./src/
+├── aig +
+│   ├── aig            # Core implementation of And-Inverter Graphs (AIGs).
+│   ├── gia            # Scalable AIG package.
+│   ├── hop            # Minimalistic And-Inverter Graph package.
+│   ├── ioa            # Input-Output operations for AIGs, such as file I/O.
+│   ├── ivy            # An older AIG library.
+│   ├── miniaig        # Minimalistic AIG implementation optimized for small graphs.
+│   └── saig           # Sequential AIGs, handling latches and sequential logic.
+├── base +
+│   ├── abc            # Core ABC logic synthesis engine. It defines core structures and functions for logic synthesis and network manipulation.
+│   ├── abci           # Interface layer for the ABC engine.
+│   ├── acb            # Hierarchical word-level netlist.
+│   ├── bac            # Hierarchical word-level netlist.
+│   ├── cba            # Hierarchical word-level netlist.
+│   ├── cmd            # Command processing package.
+│   ├── exor           # Exclusive sum-of-product minimization.
+│   ├── io             # Command processing package. Input/Output handling.
+│   ├── main           # Main entry point for initializing the ABC system.
+│   ├── pla            # SOP manager.
+│   ├── test           # Testing utilities or examples for verifying functionality.
+│   ├── ver            # Verilog parser. Parsing and processing Verilog files.
+│   ├── wlc            # Verilog parser. Word-Level Circuits for arithmetic operations and abstractions.
+│   └── wln            # Verilog parser. Word-Level Networks, representing higher abstraction logic.
+├── bdd
+│   ├── bbr            # Basic BDD (Binary Decision Diagram) routines or utilities.
+│   ├── cas            # Likely deals with canonical forms in BDDs.
+│   ├── cudd           # Integration with the CUDD library, a well-known BDD package.
+│   ├── dsd            # Disjoint Support Decomposition using BDDs.
+│   ├── epd            # Extended or enhanced BDD operations.
+│   ├── extrab         # Extra utilities and operations for BDDs.
+│   ├── llb            # Low-level BDD operations and optimizations.
+│   ├── mtr            # Manages tree structures for BDDs (e.g., variable ordering trees).
+│   └── reo            # Handles reordering of BDDs to improve performance and efficiency.
+├── bool
+│   ├── bdc            # Boolean decomposition or related algorithms.
+│   ├── dec            # Boolean decomposition techniques.
+│   ├── deco           # Likely decomposition optimizations.
+│   ├── kit            # Toolkit for Boolean function manipulation.
+│   ├── lucky          # Heuristic-based algorithm for Boolean optimizations.
+│   ├── rpo            # Recursively defined Partial Orders for Boolean functions.
+│   └── rsb            # Specialized Boolean synthesis or optimization routines.
+├── demo.c             # A demo program showcasing basic functionalities or APIs of ABC.
+├── generic.c          # General-purpose functions shared across the system.
+├── generic.h          # Header file for `generic.c`, defining shared functions and types.
+├── map
+│   ├── amap           # Handles area mapping optimizations for circuits.
+│   ├── cov            # Covers or partitions logic networks for mapping.
+│   ├── fpga           # FPGA-specific mapping algorithms and optimizations.
+│   ├── if             # Implements the `if`-mapping algorithm for logic synthesis.
+│   ├── mapper         # General-purpose logic mapper for various technologies.
+│   ├── mio            # Models input-output libraries for synthesis (e.g., standard cells).
+│   ├── mpm            # Multi-pattern mapping for circuits.
+│   ├── scl            # Standard Cell Library mapping and optimizations.
+│   └── super          # Supergate-based mapping for efficient logic synthesis.
+├── misc
+│   ├── avl            # AVL trees, a self-balancing binary search tree implementation.
+│   ├── bar            # Likely handles BAR structures or operations (unspecified).
+│   ├── bbl            # Basic building blocks for data structures.
+│   ├── bzlib          # Integration with the BZLib compression library.
+│   ├── espresso       # Espresso logic minimization algorithms.
+│   ├── extra          # Extra utility functions for various purposes.
+│   ├── hash           # Hash table implementations.
+│   ├── mem            # Memory management utilities.
+│   ├── mvc            # Multi-valued cover algorithms for logic synthesis.
+│   ├── nm             # Likely handles naming utilities or name management.
+│   ├── parse          # Parsing utilities (e.g., for input file formats).
+│   ├── st             # Symbol table or string table implementations.
+│   ├── tim            # Timing analysis or related utilities.
+│   ├── util           # General-purpose utility functions.
+│   ├── vec            # Vector data structure implementations.
+│   └── zlib           # Integration with the Zlib compression library.
+├── opt
+│   ├── cgt            # Cut generation techniques for circuit optimization.
+│   ├── csw            # Likely combinational switching or related optimizations.
+│   ├── cut            # Cut-based logic optimizations.
+│   ├── dar            # Delay-aware rewriting algorithms.
+│   ├── dau            # Delay-aware unit optimization algorithms.
+│   ├── dsc            # Disjoint Support Combinational optimization.
+│   ├── fret           # Specialized optimization routines (specific purpose unclear).
+│   ├── fsim           # Fault simulation or related techniques.
+│   ├── fxch           # Likely fast exchange operations for optimization.
+│   ├── fxu            # Fast XOR unit operations.
+│   ├── lpk            # Likely LUT packing for FPGA synthesis.
+│   ├── mfs            # Multi-level circuit optimization techniques.
+│   ├── nwk            # Handles network-level optimizations.
+│   ├── res            # Resynthesis algorithms for logic networks.
+│   ├── ret            # Retiming algorithms for sequential circuits.
+│   ├── rwr            # Rule-based rewriting algorithms.
+│   ├── rwt            # Tree-based rewriting optimizations.
+│   ├── sbd            # Structural Boolean decomposition.
+│   ├── sfm            # Sequential logic flattening and minimization.
+│   └── sim            # Simulation-based logic optimizations.
+├── phys
+│   └── place          # Physical placement algorithms for circuits.
+├── proof
+│   ├── abs            # Abstraction techniques for logic verification.
+│   ├── acec           # Advanced combinational equivalence checking.
+│   ├── cec            # Combinational equivalence checker.
+│   ├── dch            # Sequential circuit equivalence checking (disjoint support).
+│   ├── fra            # FRAIG-based techniques for optimization or verification.
+│   ├── fraig          # Functional Reduced AIGs (FRAIG) implementation.
+│   ├── int            # Core interpolation routines for logic verification.
+│   ├── int2           # Extended interpolation routines.
+│   ├── live           # Liveness checking algorithms.
+│   ├── pdr            # Property Directed Reachability (PDR) for model checking.
+│   ├── ssc            # Sequential SAT-based checking.
+│   └── ssw            # Sequential SAT-based windowing algorithms.
+├── sat
+│   ├── bmc            # Bounded Model Checking (SAT-based verification).
+│   ├── bsat           # Basic SAT solver implementation.
+│   ├── bsat2          # Extended SAT solver implementation.
+│   ├── cnf            # Handles CNF (Conjunctive Normal Form) conversion.
+│   ├── csat           # Core SAT solver.
+│   ├── glucose        # Integration with Glucose SAT solver.
+│   ├── glucose2       # Extended Glucose SAT solver integration.
+│   ├── lsat           # Likely lightweight SAT solver.
+│   ├── msat           # MiniSAT-based solver integration.
+│   ├── proof          # Proof generation and checking for SAT solvers.
+│   ├── psat           # Parallel SAT solver.
+│   ├── satoko         # Lightweight SAT solver implementation.
+│   └── xsat           # Extended SAT solver or experimental solver.
+├── starter.c          # Starter/example program for using the ABC framework.
+└── template.c         # Template program for creating new ABC modules.
+
+118 directories, 5 files
+
+上面的解释是gpt生成的，我发现有很多是错误的，所以不要太信以为真，verified的行后有个+号

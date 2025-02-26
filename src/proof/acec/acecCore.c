@@ -200,7 +200,7 @@ void Acec_ComputeEquivClasses( Gia_Man_t * pOne, Gia_Man_t * pTwo, Vec_Int_t ** 
     pBase = Acec_CommonStart( NULL, pOne );
     pBase = Acec_CommonStart( pBase, pTwo );
     Acec_CommonFinish( pBase );
-    //Gia_ManShow( pBase, NULL, 0, 0, 0 );
+    // Gia_ManShow( pBase, NULL, 0, 0, 0 );
     pRepr = Gia_ManComputeGiaEquivs( pBase, 100, 0 );
     *pvMap1 = Acec_CountRemap( pOne, pBase );
     *pvMap2 = Acec_CountRemap( pTwo, pBase );
@@ -403,12 +403,12 @@ int Acec_MatchBoxes( Acec_Box_t * pBox0, Acec_Box_t * pBox1 )
         Acec_MatchBoxesSort( Vec_IntArray(vLevel), Vec_IntSize(vLevel), Vec_IntArray(vMap1) );
     Acec_MatchCheckShift( pBox0->pGia, pBox1->pGia, pBox0->vLeafLits, pBox1->vLeafLits, vMap0, vMap1, pBox0->vRootLits, pBox1->vRootLits );
     
-    //Acec_MatchPrintEquivLits( pBox0->pGia, pBox0->vLeafLits, Vec_IntArray(vMap0), 0 );
-    //Acec_MatchPrintEquivLits( pBox1->pGia, pBox1->vLeafLits, Vec_IntArray(vMap1), 0 );
-    //printf( "Outputs:\n" );
-    //Vec_WecPrintLits( pBox0->vRootLits );
-    //printf( "Outputs:\n" );
-    //Vec_WecPrintLits( pBox1->vRootLits );
+    Acec_MatchPrintEquivLits( pBox0->pGia, pBox0->vLeafLits, Vec_IntArray(vMap0), 0 );
+    Acec_MatchPrintEquivLits( pBox1->pGia, pBox1->vLeafLits, Vec_IntArray(vMap1), 0 );
+    printf( "Outputs:\n" );
+    Vec_WecPrintLits( pBox0->vRootLits );
+    printf( "Outputs:\n" );
+    Vec_WecPrintLits( pBox1->vRootLits );
 
     // reorder nodes to have the same order
     assert( pBox0->vShared == NULL );
@@ -462,12 +462,12 @@ int Acec_MatchBoxes( Acec_Box_t * pBox0, Acec_Box_t * pBox1 )
     printf( "Box0: Matched %d entries out of %d.\n", nTotal, Vec_WecSizeSize(pBox0->vLeafLits) );
     printf( "Box1: Matched %d entries out of %d.\n", nTotal, Vec_WecSizeSize(pBox1->vLeafLits) );
 
-    //Acec_MatchPrintEquivLits( pBox0->pGia, pBox0->vShared, Vec_IntArray(vMap0), 0 );
-    //Acec_MatchPrintEquivLits( pBox1->pGia, pBox1->vShared, Vec_IntArray(vMap1), 0 );
-    //printf( "\n" );
+    Acec_MatchPrintEquivLits( pBox0->pGia, pBox0->vShared, Vec_IntArray(vMap0), 0 );
+    Acec_MatchPrintEquivLits( pBox1->pGia, pBox1->vShared, Vec_IntArray(vMap1), 0 );
+    printf( "\n" );
 
-    //Acec_MatchPrintEquivLits( pBox0->pGia, pBox0->vUnique, Vec_IntArray(vMap0), 0 );
-    //Acec_MatchPrintEquivLits( pBox1->pGia, pBox1->vUnique, Vec_IntArray(vMap1), 0 );
+    Acec_MatchPrintEquivLits( pBox0->pGia, pBox0->vUnique, Vec_IntArray(vMap0), 0 );
+    Acec_MatchPrintEquivLits( pBox1->pGia, pBox1->vUnique, Vec_IntArray(vMap1), 0 );
 
     Vec_IntFree( vMap0 );
     Vec_IntFree( vMap1 );
@@ -511,11 +511,11 @@ int Acec_Solve( Gia_Man_t * pGia0, Gia_Man_t * pGia1, Acec_ParCec_t * pPars )
         printf( "Matching of adder trees in LHS and RHS succeeded.  " );
         Abc_PrintTime( 1, "Time", Abc_Clock() - clk );
         // remove the last output
-        Gia_ManPatchCoDriver( pGia0n, Gia_ManCoNum(pGia0n)-1, 0 );
-        Gia_ManPatchCoDriver( pGia1n, Gia_ManCoNum(pGia1n)-1, 0 );
+        // Gia_ManPatchCoDriver( pGia0n, Gia_ManCoNum(pGia0n)-1, 0 );
+        // Gia_ManPatchCoDriver( pGia1n, Gia_ManCoNum(pGia1n)-1, 0 );
 
-        Gia_ManPatchCoDriver( pGia0n, Gia_ManCoNum(pGia0n)-2, 0 );
-        Gia_ManPatchCoDriver( pGia1n, Gia_ManCoNum(pGia1n)-2, 0 );
+        // Gia_ManPatchCoDriver( pGia0n, Gia_ManCoNum(pGia0n)-2, 0 );
+        // Gia_ManPatchCoDriver( pGia1n, Gia_ManCoNum(pGia1n)-2, 0 );
     }
     // solve regular CEC problem 
     Cec_ManCecSetDefaultParams( pCecPars );

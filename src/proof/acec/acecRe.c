@@ -264,7 +264,7 @@ void Ree_ManCutMerge( Gia_Man_t * p, int iObj, int * pList0, int * pList1, Vec_I
         printf( "Object %d\n", iObj );
     Vec_IntFill( vCuts, 2, 1 );
     Vec_IntPush( vCuts, iObj );
-    Vec_IntPush( vCuts, 0xAA );
+    Vec_IntPush( vCuts, 0xAA );     
     Ree_ForEachCut( pList0, pCut0, i )
     Ree_ForEachCut( pList1, pCut1, k )
     {

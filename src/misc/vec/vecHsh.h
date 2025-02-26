@@ -521,7 +521,7 @@ static inline int Hsh_VecManAdd( Hsh_VecMan_t * p, Vec_Int_t * vVec )
 {
     Hsh_VecObj_t * pObj;
     int i, Ent, * pPlace;
-    if ( Vec_IntSize(p->vMap) > Vec_IntSize(p->vTable) )
+    if ( Vec_IntSize(p->vMap) > Vec_IntSize(p->vTable) )zz
     {
         Vec_IntFill( p->vTable, Abc_PrimeCudd(2*Vec_IntSize(p->vTable)), -1 );
         for ( i = 0; i < Vec_IntSize(p->vMap); i++ )
