@@ -193,16 +193,21 @@ void Acec_ManCollectInsOuts( Gia_Man_t * p, Vec_Int_t * vAdds, Vec_Int_t * vBoxe
         Vec_BitWriteEntry( vBoxIns, Vec_IntEntry(vAdds, 6*iBox+2), 1 );
         Vec_BitWriteEntry( vBoxOuts, Vec_IntEntry(vAdds, 6*iBox+3), 1 );
         Vec_BitWriteEntry( vBoxOuts, Vec_IntEntry(vAdds, 6*iBox+4), 1 );
+        printf("marked nodes: %d %d %d %d %d\n", Vec_IntEntry(vAdds, 6*iBox+0), Vec_IntEntry(vAdds, 6*iBox+1), Vec_IntEntry(vAdds, 6*iBox+2), Vec_IntEntry(vAdds, 6*iBox+3), Vec_IntEntry(vAdds, 6*iBox+4));
     }
     // collect unmarked inputs/output and their ranks
     Vec_IntForEachEntry( vBoxes, iBox, i )
     {
         for ( k = 0; k < 3; k++ )
-            if ( !Vec_BitEntry(vBoxOuts, Vec_IntEntry(vAdds, 6*iBox+k)) )
+            if ( !Vec_BitEntry(vBoxOuts, Vec_IntEntry(vAdds, 6*iBox+k)) ){
+                printf("new in: %d\n", Vec_IntEntry(vAdds, 6*iBox+k));
                 Vec_IntPushTwo( vResIns, Vec_IntEntry(vAdds, 6*iBox+k), Vec_IntEntry(vBoxRanks, iBox) );
+            }
         for ( k = 3; k < 5; k++ )
-            if ( Vec_IntEntry(vAdds, 6*iBox+k) && !Vec_BitEntry(vBoxIns, Vec_IntEntry(vAdds, 6*iBox+k)) )
+            if ( Vec_IntEntry(vAdds, 6*iBox+k) && !Vec_BitEntry(vBoxIns, Vec_IntEntry(vAdds, 6*iBox+k)) ){
+                printf("new out: %d\n", Vec_IntEntry(vAdds, 6*iBox+k));
                 Vec_IntPushTwo( vResOuts, Vec_IntEntry(vAdds, 6*iBox+k), Vec_IntEntry(vBoxRanks, iBox)-(int)(k==4) );
+            }
     }
     // unmark box inputs/outputs
     Vec_IntForEachEntry( vBoxes, iBox, i )
