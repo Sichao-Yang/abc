@@ -6,6 +6,7 @@ SRC +=    src/aig/gia/giaAig.c \
     src/aig/gia/giaBalLut.c \
     src/aig/gia/giaBalMap.c \
     src/aig/gia/giaBidec.c \
+    src/aig/gia/giaBsFind.c \
     src/aig/gia/giaCCof.c \
     src/aig/gia/giaCex.c \
     src/aig/gia/giaClp.c \
@@ -73,6 +74,7 @@ SRC +=    src/aig/gia/giaAig.c \
     src/aig/gia/giaResub6.c \
     src/aig/gia/giaRetime.c \
     src/aig/gia/giaRex.c \
+    src/aig/gia/giaRrr.cpp \
     src/aig/gia/giaSatEdge.c \
     src/aig/gia/giaSatLE.c \
     src/aig/gia/giaSatLut.c \

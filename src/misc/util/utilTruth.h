@@ -1987,6 +1987,20 @@ static inline void Abc_TtSwapVars( word * pTruth, int nVars, int iVar, int jVar 
         return;
     }    
 }
+// exchanges places of v1 and v2
+static inline void Abc_TtExchangeVars( word * pF, int nVars, int * V2P, int * P2V, int v1, int v2 )
+{
+    int iPlace0 = V2P[v1];
+    int iPlace1 = V2P[v2];
+    if ( iPlace0 == iPlace1 )
+        return;
+    Abc_TtSwapVars( pF, nVars, iPlace0, iPlace1 );
+    V2P[P2V[iPlace0]] = iPlace1;
+    V2P[P2V[iPlace1]] = iPlace0;
+    P2V[iPlace0] ^= P2V[iPlace1];
+    P2V[iPlace1] ^= P2V[iPlace0];
+    P2V[iPlace0] ^= P2V[iPlace1];
+}
 // moves one var (v) to the given position (p)
 static inline void Abc_TtMoveVar( word * pF, int nVars, int * V2P, int * P2V, int v, int p )
 {
@@ -2006,6 +2020,27 @@ static inline word Abc_Tt6RemoveVar( word t, int iVar )
     while ( iVar < 5 )
         t = Abc_Tt6SwapAdjacent( t, iVar++ );
     return t;
+}
+// permutes two variables while keeping track of their places
+static inline void Abc_TtPermuteTwo( word * p, int nTTVars, int * Var2Pla, int * Pla2Var, int Var0, int Var1 )
+{
+    int iPlace0 = Var2Pla[Var0];
+    int iPlace1 = Var2Pla[Var1];
+    if ( iPlace0 == iPlace1 )
+        return;
+    Abc_TtSwapVars( p, nTTVars, iPlace0, iPlace1 );
+    Var2Pla[Pla2Var[iPlace0]] = iPlace1;
+    Var2Pla[Pla2Var[iPlace1]] = iPlace0;
+    Pla2Var[iPlace0] ^= Pla2Var[iPlace1];
+    Pla2Var[iPlace1] ^= Pla2Var[iPlace0];
+    Pla2Var[iPlace0] ^= Pla2Var[iPlace1];
+}
+// restores natural variable order
+static inline void Abc_TtRestoreOrder( word * p, int nTTVars, int * Var2Pla, int * Pla2Var, int nPermVars )
+{
+    int i;
+    for ( i = 0; i < nPermVars; i++ )
+        Abc_TtPermuteTwo( p, nTTVars, Var2Pla, Pla2Var, i, Var2Pla[i] );
 }
 
 /**Function*************************************************************

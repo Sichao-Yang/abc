@@ -27,22 +27,33 @@
 #include "misc/extra/extra.h"
 #include "misc/util/utilTruth.h"
 
+#ifdef _MSC_VER
+#  include <intrin.h>
+#  define __builtin_popcount __popcnt
+#endif
+
 ABC_NAMESPACE_IMPL_START
 
 ////////////////////////////////////////////////////////////////////////
 ///                        DECLARATIONS                              ///
 ////////////////////////////////////////////////////////////////////////
 
+#define MAX_TT_SIZE 24
+
 typedef struct Abc_BSEval_t_  Abc_BSEval_t;
 struct Abc_BSEval_t_
 {
     int           nVars;
+    int           nLVars;
     int           nBVars;
-    Vec_Int_t *   vPairs;   // perm pairs
-    Vec_Int_t *   vCounts;  // cofactor counts
-    Vec_Int_t *   vTable;   // hash table
-    Vec_Int_t *   vUsed;    // used entries
-    Vec_Wrd_t *   vStore;   // cofactors
+    Vec_Int_t *   vPairs[MAX_TT_SIZE][MAX_TT_SIZE];  // perm pairs
+    Vec_Int_t *   vCounts;                           // cofactor counts
+    Vec_Int_t *   vTable;                            // hash table
+    Vec_Int_t *   vUsed;                             // used entries
+    Vec_Wrd_t *   vStore;                            // cofactors
+    Vec_Wec_t *   vSets[MAX_TT_SIZE];                // sets
+    Vec_Wrd_t *   vCofs[MAX_TT_SIZE];                // cofactors
+    word *        pPat;                              // patterns
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -190,7 +201,7 @@ int Abc_TtGetCMCount( word * p, int nVars, int nFVars, Vec_Int_t * vCounts, Vec_
         return Abc_TtGetCM4( p, nVars, Vec_IntArray(vCounts), vUsed );
     if ( nFVars == 5 ) 
         return Abc_TtGetCM5( p, nVars, vTable, vStore, vUsed );
-    if ( nFVars == 6 ) 
+    if ( nFVars >= 6 ) 
         return Abc_TtGetCM6( p, nVars, nFVars, vTable, vStore, vUsed );
     assert( 0 );
     return 0;
@@ -334,14 +345,13 @@ int Abc_TtCheck1Shared( word * pPat, int nVars, int nFVars, int nMyu )
     if ( fVerbose ) printf( "Not found\n" );
     return nRails;
 }
-int Abc_TtGetCMPat( word * p, int nVars, int nFVars, Vec_Int_t * vCounts, Vec_Int_t * vTable, Vec_Wrd_t * vStore, Vec_Int_t * vUsed )
+int Abc_TtGetCMInt( word * p, int nVars, int nFVars, Vec_Int_t * vCounts, Vec_Int_t * vTable, Vec_Wrd_t * vStore, Vec_Int_t * vUsed, word * pPat )
 {
-    word pPat[1024];
     int nMintsBS = 1 << (nVars - nFVars);
     int nWordsBS = Abc_TtWordNum(nVars - nFVars);
-    assert( nMintsBS * nWordsBS <= 1024 );
+    //assert( nMintsBS * nWordsBS <= MAX_PAT_WORD_SIZE );
     memset( pPat, 0, 8 * nMintsBS * nWordsBS );
-    int nMyu = 0, nRails;
+    int nMyu = 0;
     if ( nFVars == 1 ) 
         nMyu = Abc_TtGetCM1Pat( p, nVars, pPat );
     else if ( nFVars == 2 ) 
@@ -352,13 +362,19 @@ int Abc_TtGetCMPat( word * p, int nVars, int nFVars, Vec_Int_t * vCounts, Vec_In
         nMyu = Abc_TtGetCM4Pat( p, nVars, Vec_IntArray(vCounts), vUsed, pPat );
     else if ( nFVars == 5 ) 
         nMyu = Abc_TtGetCM5Pat( p, nVars, vTable, vStore, vUsed, pPat );
-    else if ( nFVars == 6 ) 
+    else if ( nFVars >= 6 ) 
         nMyu = Abc_TtGetCM6Pat( p, nVars, nFVars, vTable, vStore, vUsed, pPat );
     else assert( 0 );
+    return nMyu;
+}
+
+int Abc_TtGetCMPat( word * p, int nVars, int nFVars, Vec_Int_t * vCounts, Vec_Int_t * vTable, Vec_Wrd_t * vStore, Vec_Int_t * vUsed )
+{
+    int nRails, nMyu = Abc_TtGetCMInt( p, nVars, nFVars, vCounts, vTable, vStore, vUsed, NULL );
     if ( nMyu <= 2 )
         nRails = 1;
     else
-        nRails = Abc_TtCheck1Shared( pPat, nVars, nFVars, nMyu );
+        nRails = Abc_TtCheck1Shared( NULL, nVars, nFVars, nMyu );
     return nRails;
 }
 int Abc_TtGetCM( word * p, int nVars, int nFVars, Vec_Int_t * vCounts, Vec_Int_t * vTable, Vec_Wrd_t * vStore, Vec_Int_t * vUsed, int fShared )
@@ -548,47 +564,67 @@ Abc_BSEval_t * Abc_BSEvalAlloc()
 }
 void Abc_BSEvalFree( Abc_BSEval_t * p )
 {
-    Vec_IntFreeP( &p->vPairs );
+    for ( int i = 0; i < MAX_TT_SIZE; i++ )
+    for ( int k = 0; k < MAX_TT_SIZE; k++ )
+        Vec_IntFreeP( &p->vPairs[i][k] );
     Vec_IntFree( p->vCounts );
     Vec_IntFree( p->vTable  );
     Vec_IntFree( p->vUsed   );
     Vec_WrdFree( p->vStore  );
+    for ( int i = 0; i < MAX_TT_SIZE; i++ )
+        Vec_WecFreeP( &p->vSets[i] );
+    for ( int i = 0; i < MAX_TT_SIZE; i++ )
+        Vec_WrdFreeP( &p->vCofs[i] );
+    ABC_FREE( p->pPat );
     ABC_FREE( p );
 }
-void Abc_BSEvalOneTest( word * pT, int nVars, int nBVars, int fVerbose )
+void Abc_BSEvalOneTest( word * pT, int nVars, int nLVars, int fVerbose )
 {
-    assert( nVars > nBVars );
+    assert( nVars > nLVars );
     Abc_BSEval_t * p = Abc_BSEvalAlloc();
-    if ( p->nVars != nVars || p->nBVars != nBVars ) {
-        Vec_IntFreeP( &p->vPairs );
-        p->vPairs = Abc_GenChasePairs( nVars, nBVars );
+    if ( p->nVars != nVars || p->nLVars != nLVars ) {
         p->nVars = nVars;
-        p->nBVars = nBVars;
+        p->nLVars = nLVars;
+        if ( p->vPairs[p->nVars][p->nLVars] == NULL )
+            p->vPairs[p->nVars][p->nLVars] = Abc_GenChasePairs( nVars, nLVars );
     }
-    int Best = Abc_TtGetCM( pT, nVars, nVars-nBVars, p->vCounts, p->vTable, p->vStore, p->vUsed, 0 );
+    int Best = Abc_TtGetCM( pT, nVars, nVars-nLVars, p->vCounts, p->vTable, p->vStore, p->vUsed, 0 );
     printf( "Function: " ); Extra_PrintHex( stdout, (unsigned *)pT, nVars ); printf( "\n" );
-    printf( "The column multiplicity of the %d-var function with bound-sets of size %d is %d.\n", nVars, nBVars, Best );
+    printf( "The column multiplicity of the %d-var function with bound-sets of size %d is %d.\n", nVars, nLVars, Best );
     Abc_BSEvalFree(p);
 }
-int Abc_BSEvalBest( Abc_BSEval_t * p, word * pIn, word * pBest, int nVars, int nCVars, int nFVars, int fVerbose, int * pPermBest, int fShared )
+int Abc_BSEvalBest( Abc_BSEval_t * p, word * pIn, word * pBest, word * pBest2, int nVars, int nCVars, int nFVars, int fVerbose, int * pPermBest, int * pPermBest2, int fShared, int nJRatio )
 {
     int i, k, Var0, Var1, Pla2Var[32], Var2Pla[32];
-    int nPermVars = nVars-nCVars;
-    assert( p->nVars == nPermVars && p->nBVars == nPermVars-nFVars );
+    int nPermVars = nVars-nCVars, Count = 0;
+    assert( p->nVars == nPermVars && p->nLVars == nVars-nFVars );
     for ( i = 0; i < nVars; i++ )
         Pla2Var[i] = Var2Pla[i] = i;
     if ( pPermBest )
         for ( i = 0; i < nVars; i++ )
             pPermBest[i] = i;
     int CostBest = 1 << nVars;
+    int CostBest2 = 1 << nVars;
+    int iSave = nJRatio ? (Abc_Random(0) % Vec_IntSize(p->vPairs[p->nVars][p->nLVars])/2) : -1; 
+    //printf( "The number of pairs = %d.\n", Vec_IntSize(p->vPairs[p->nVars][p->nLVars])/2 );
     //int Count = 0;
-    Vec_IntForEachEntryDouble( p->vPairs, Var0, Var1, i ) {
+    Vec_IntForEachEntryDouble( p->vPairs[p->nVars][p->nLVars], Var0, Var1, i ) {
         //Abc_GenChasePrint( Count++, Pla2Var, nVars, nFVars, Var0, Var1 );
         int  CostThis = Abc_TtGetCM( pIn, nVars, nFVars, p->vCounts, p->vTable, p->vStore, p->vUsed, fShared );
+        if ( iSave == i/2 ) {
+            CostBest2 = CostThis;
+            if ( pBest2 )     Abc_TtCopy( pBest2, pIn, Abc_Truth6WordNum(nVars), 0 );
+            if ( pPermBest2 ) memcpy( pPermBest2, Pla2Var, sizeof(int)*nVars );            
+        }
         if ( CostBest > CostThis ) {
             CostBest = CostThis;
             if ( pBest )     Abc_TtCopy( pBest, pIn, Abc_Truth6WordNum(nVars), 0 );
-            if ( pPermBest ) memcpy( pPermBest, Pla2Var, sizeof(int)*nPermVars );
+            if ( pPermBest ) memcpy( pPermBest, Pla2Var, sizeof(int)*nVars );
+            Count = 1;
+        }
+        else if ( CostBest == CostThis && (Abc_Random(0) % ++Count) == 0 ) {
+            if ( pBest )     Abc_TtCopy( pBest, pIn, Abc_Truth6WordNum(nVars), 0 );
+            if ( pPermBest ) memcpy( pPermBest, Pla2Var, sizeof(int)*nVars );
         }
         if ( fVerbose )
         {
@@ -602,8 +638,20 @@ int Abc_BSEvalBest( Abc_BSEval_t * p, word * pIn, word * pBest, int nVars, int n
             for ( k = nFVars-1; k >= 0; k-- )
                 printf( " %d", Pla2Var[k] );
             printf( "  : Myu = %3d", CostThis );
-            printf( "\n" );
+            //printf( "\n" );
         }
+        if ( 0 ) {
+            //word pPat[MAX_PAT_WORD_SIZE];
+            int nRails = 1, Shared = 0, nSetSize = 0;
+            if ( CostThis > (1 << nRails) ) {
+                extern int Abc_SharedEvalBest( Abc_BSEval_t * p, word * pTruth, int nVars, int nCVars, int nFVars, int MyuMin, int nRails, int fVerbose, int * pSetShared, int * pSetSize, word * pPat );
+                int nRailsMin = Abc_SharedEvalBest( p, pIn, nVars, nCVars, nFVars, CostThis, nRails, 0, &Shared, &nSetSize, p->pPat );
+                printf( "  RailMin = %d. Shared = %2d. ", nRailsMin, Shared );
+            }
+        }
+        if ( fVerbose )
+            printf( "\n" );
+
         int iPlace0 = Var2Pla[Var0];
         int iPlace1 = Var2Pla[Var1];
         if ( iPlace0 == iPlace1 )
@@ -628,22 +676,28 @@ int Abc_BSEvalBest( Abc_BSEval_t * p, word * pIn, word * pBest, int nVars, int n
         Pla2Var[iPlace1] ^= Pla2Var[iPlace0];
         Pla2Var[iPlace0] ^= Pla2Var[iPlace1];
     }
+    if ( nJRatio && Abc_Random(0) % nJRatio == 0 ) {
+        CostBest = CostBest2;
+        if ( pBest2 )     Abc_TtCopy( pBest, pBest2, Abc_Truth6WordNum(nVars), 0 );
+        if ( pPermBest2 ) memcpy( pPermBest, pPermBest2, sizeof(int)*nVars );
+    }
     return CostBest;
 }
-void Abc_BSEvalBestTest( word * pIn, int nVars, int nBVars, int fShared, int fVerbose )
+void Abc_BSEvalBestTest( word * pIn, int nVars, int nLVars, int fShared, int fVerbose )
 {
-    assert( nVars > nBVars );
-    Abc_BSEval_t * p = Abc_BSEvalAlloc(); int i, pPerm[32] = {0};
-    if ( p->nVars != nVars || p->nBVars != nBVars ) {
-        Vec_IntFreeP( &p->vPairs );
-        p->vPairs = Abc_GenChasePairs( nVars, nBVars );
+    assert( nVars > nLVars );
+    Abc_BSEval_t * p = Abc_BSEvalAlloc(); int i, pPerm[32] = {0}, pPerm2[32] = {0};
+    if ( p->nVars != nVars || p->nLVars != nLVars ) {
         p->nVars = nVars;
-        p->nBVars = nBVars;        
+        p->nLVars = nLVars;
+        if ( p->vPairs[p->nVars][p->nLVars] == NULL )
+            p->vPairs[p->nVars][p->nLVars] = Abc_GenChasePairs( nVars, nLVars );
     }    
     word * pFun = ABC_ALLOC( word, Abc_TtWordNum(nVars) );
-    int Best = Abc_BSEvalBest( p, pIn, pFun, nVars, 0, nVars-nBVars, fVerbose, pPerm, fShared );
+    word * pFun2 = ABC_ALLOC( word, Abc_TtWordNum(nVars) );
+    int Best = Abc_BSEvalBest( p, pIn, pFun, pFun2, nVars, 0, nVars-nLVars, fVerbose, pPerm, pPerm2, fShared, 0 );
     printf( "The minimum %s of the %d-var function with bound-sets of size %d is %d.\n", 
-        fShared ? "number of rails" : "column multiplicity", nVars, nBVars, Best );
+        fShared ? "number of rails" : "column multiplicity", nVars, nLVars, Best );
     printf( "Original: " ); Extra_PrintHex( stdout, (unsigned *)pIn,  nVars ); printf( "\n" );
     printf( "Permuted: " ); Extra_PrintHex( stdout, (unsigned *)pFun, nVars ); printf( "\n" );
     printf( "Permutation is " );
@@ -651,6 +705,7 @@ void Abc_BSEvalBestTest( word * pIn, int nVars, int nBVars, int fShared, int fVe
         printf( "%d ", pPerm[i] );
     printf( "\n" );
     ABC_FREE( pFun );
+    ABC_FREE( pFun2 );
     Abc_BSEvalFree(p);
 }
 
@@ -665,19 +720,20 @@ void Abc_BSEvalBestTest( word * pIn, int nVars, int nBVars, int fShared, int fVe
   SeeAlso     []
 
 ***********************************************************************/
-void Abc_BSEvalBestGen( int nVars, int nBVars, int nFuncs, int nMints, int fTryAll, int fShared, int fVerbose )
+void Abc_BSEvalBestGen( int nVars, int nLVars, int nFuncs, int nMints, int fTryAll, int fShared, int fVerbose )
 {
-    assert( nVars > nBVars );
+    assert( nVars > nLVars );
     abctime clkTotal = Abc_Clock();
     Abc_BSEval_t * p = Abc_BSEvalAlloc();
     Vec_Int_t * vCounts[2] = { Vec_IntStart(1 << nVars), Vec_IntStart(1 << nVars) };
     int i, k, Count, nWords = Abc_TtWordNum(nVars);
     word * pFun = ABC_ALLOC( word, nWords );
-    if ( p->nVars != nVars || p->nBVars != nBVars ) {
-        Vec_IntFreeP( &p->vPairs );
-        p->vPairs = Abc_GenChasePairs( nVars, nBVars );
+    word * pFun2 = ABC_ALLOC( word, nWords );
+    if ( p->nVars != nVars || p->nLVars != nLVars ) {
         p->nVars = nVars;
-        p->nBVars = nBVars;        
+        p->nLVars = nLVars;
+        if ( p->vPairs[p->nVars][p->nLVars] == NULL )
+            p->vPairs[p->nVars][p->nLVars] = Abc_GenChasePairs( nVars, nLVars );
     }    
     Abc_Random(1);
     for ( i = 0; i < nFuncs; i++ ) {
@@ -708,34 +764,35 @@ void Abc_BSEvalBestGen( int nVars, int nBVars, int nFuncs, int nMints, int fTryA
         }
         
         if ( fTryAll )
-            Count = Abc_BSEvalBest( p, pFun, NULL, nVars, 0, nVars-nBVars, fVerbose, NULL, fShared );
+            Count = Abc_BSEvalBest( p, pFun, pFun2, NULL, nVars, 0, nVars-nLVars, fVerbose, NULL, NULL, fShared, 0 );
         else 
-            Count = Abc_TtGetCM( pFun, nVars, nVars-nBVars, p->vCounts, p->vTable, p->vStore, p->vUsed, fShared );
+            Count = Abc_TtGetCM( pFun, nVars, nVars-nLVars, p->vCounts, p->vTable, p->vStore, p->vUsed, fShared );
         if ( fVerbose )
             printf( "Myu = %d\n", Count );        
         Vec_IntAddToEntry( vCounts[0], Count, 1 );
         Vec_IntAddToEntry( vCounts[1], Abc_Base2Log(Count), 1 );
     }
     ABC_FREE( pFun );
+    ABC_FREE( pFun2 );
     Abc_BSEvalFree(p);
     if ( nMints )
         printf( "Generated %d random %d-var functions with %d positive minterms.\n", nFuncs, nVars, nMints );
     else
         printf( "Generated %d random %d-var functions.\n", nFuncs, nVars );
     if ( fShared ) {
-        printf( "Distribution of the %s number of rails for bound set size %d with one shared variable:\n", fTryAll ? "MINIMUM": "ORIGINAL", nBVars );
+        printf( "Distribution of the %s number of rails for bound set size %d with one shared variable:\n", fTryAll ? "MINIMUM": "ORIGINAL", nLVars );
         assert( Vec_IntSum(vCounts[0]) == nFuncs );
         Vec_IntForEachEntry( vCounts[0], Count, i )
             if ( Count ) printf( "%d=%d (%.2f %%)  ", i, Count, 100.0*Count/nFuncs );
         printf( "\n" );
     }
     else {
-        printf( "Distribution of the %s column multiplicity for bound set size %d with no shared variables:\n", fTryAll ? "MINIMUM": "ORIGINAL", nBVars );
+        printf( "Distribution of the %s column multiplicity for bound set size %d with no shared variables:\n", fTryAll ? "MINIMUM": "ORIGINAL", nLVars );
         assert( Vec_IntSum(vCounts[0]) == nFuncs );
         Vec_IntForEachEntry( vCounts[0], Count, i )
             if ( Count ) printf( "%d=%d (%.2f %%)  ", i, Count, 100.0*Count/nFuncs );
         printf( "\n" );
-        printf( "Distribution of the %s number of rails for bound set size %d with no shared variables:\n", fTryAll ? "MINIMUM": "ORIGINAL", nBVars );
+        printf( "Distribution of the %s number of rails for bound set size %d with no shared variables:\n", fTryAll ? "MINIMUM": "ORIGINAL", nLVars );
         assert( Vec_IntSum(vCounts[1]) == nFuncs );
         Vec_IntForEachEntry( vCounts[1], Count, i )
             if ( Count ) printf( "%d=%d (%.2f %%)  ", i, Count, 100.0*Count/nFuncs );
@@ -744,6 +801,495 @@ void Abc_BSEvalBestGen( int nVars, int nBVars, int nFuncs, int nMints, int fTryA
     Vec_IntFree( vCounts[0] );
     Vec_IntFree( vCounts[1] );
     Abc_PrintTime( 1, "Total runtime", Abc_Clock() - clkTotal );
+}
+
+
+/**Function*************************************************************
+
+  Synopsis    [Finds shared variables.]
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+void Abc_BSEvalCreateCofs( int iSet, int nVars, Vec_Wrd_t * vCofs, Vec_Wrd_t * vElems )
+{
+    int nWords = Abc_Truth6WordNum(nVars);
+    int m, i, nUsed = 0, pUsed[32], Start = Vec_WrdSize(vCofs);
+    for ( i = 0; i < nVars; i++ )
+        if ( (iSet >> i) & 1 )
+            pUsed[nUsed++] = i;
+    Vec_WrdFillExtra( vCofs, Start + nWords*(1 << nUsed), ~(word)0 );
+    for ( m = 0; m < (1 << nUsed); m++ )
+    {
+        word * pCof = Vec_WrdEntryP(vCofs, Start + m*nWords);
+        for ( i = 0; i < nUsed; i++ )
+            Abc_TtAndSharp( pCof, pCof, Vec_WrdEntryP(vElems, nWords*pUsed[i]), nWords, ((m >> i) & 1) == 0 );
+    }
+}
+Vec_Wrd_t * Abc_BSEvalCreateCofactorSets( int nVars, Vec_Wec_t ** pvSets )
+{
+    Vec_Wrd_t * vElems = Vec_WrdStartTruthTables6( nVars );
+    Vec_Wrd_t * vCofs  = Vec_WrdAlloc( 1000 );
+    Vec_Wec_t * vSets  = Vec_WecStart( nVars+1 );
+    int m, nMints = 1 << nVars;
+    for ( m = 0; m < nMints; m++ )
+    {
+        int nOnes = __builtin_popcount(m);
+        Vec_WecPushTwo( vSets, nOnes, m, Vec_WrdSize(vCofs) );
+        Abc_BSEvalCreateCofs( m, nVars, vCofs, vElems );
+    }
+    Vec_WrdFree( vElems );
+    *pvSets = vSets;
+    return vCofs;
+}
+
+static inline int Abc_BSEvalCountUnique( word * pISets, int nISets, int nBSWords, word * pCof )
+{
+    int i, Count = 0;
+    for ( i = 0; i < nISets; i++ )
+        Count += Abc_TtIntersect(pISets + i*nBSWords, pCof, nBSWords, 0);
+    return Count;
+}
+static inline int Abc_BSEvalCountUniqueMax( word * pISets, int nISets, int nBSWords, word * pCofs, int nOnes, int nISetsMaxHave )
+{
+    int m, nMints = (1 << nOnes), CountMax = 0;
+    //assert( nOnes > 0 && nOnes < 5 );
+    for ( m = 0; m < nMints; m++ )
+    {
+        int Count = Abc_BSEvalCountUnique( pISets, nISets, nBSWords, pCofs + m * nBSWords );
+        if ( Count > nISetsMaxHave )
+            return 0;
+        CountMax = Abc_MaxInt( CountMax, Count );
+    }
+    return CountMax;
+}
+
+
+/**Function*************************************************************
+
+  Synopsis    []
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+int Abc_SharedEvalBest( Abc_BSEval_t * p, word * pTruth, int nVars, int nCVars, int nFVars, int MyuMin, int nRails, int fVerbose, int * pSetShared, int * pnSetSize, word * pPat )
+{
+    int nBSWords = Abc_Truth6WordNum( nVars - nFVars ), CVarMask = nCVars ? Abc_InfoMask(nCVars) << (nVars - nCVars - nFVars) : 0;
+    int MyuCur, Myu = Abc_TtGetCMInt( pTruth, nVars, nFVars, p->vCounts, p->vTable, p->vStore, p->vUsed, pPat );
+    int nRailsCur = Abc_Base2Log( Myu ); Vec_Int_t * vLevel; 
+    assert( Myu == MyuMin && nRailsCur >= nRails );
+    int i, k, iSet, iStart, nSharedMax = nVars - nFVars - nRails, nRailsMin = 100; 
+    Vec_WecForEachLevelStartStop( p->vSets[p->nBVars], vLevel, i, 1, nSharedMax ) {
+        Vec_IntForEachEntryDouble( vLevel, iSet, iStart, k ) {
+            if ( iSet & CVarMask )
+                continue;
+            //printf( "\nTrying set " ); Extra_PrintBinary( stdout, &iSet, nVars-nFVars ); printf( "\n" );
+            MyuCur = Abc_BSEvalCountUniqueMax( pPat, Myu, nBSWords, Vec_WrdEntryP(p->vCofs[p->nBVars], iStart), i, 1 << nRails );
+            //printf( "  Res = %d", MyuCur );
+            if ( MyuCur == 0 || MyuCur > (1 << nRails) )
+                continue;
+            nRailsCur = Abc_Base2Log(MyuCur);
+            if ( nRailsCur > nRails )
+                continue;
+            if ( nRailsMin > nRailsCur ) {
+                 nRailsMin = nRailsCur;
+                *pSetShared = iSet;
+                *pnSetSize = i;
+            }
+        }
+        if ( nRailsMin <= nRails )
+            break;
+    }
+    return nRailsMin;
+}
+
+/**Function*************************************************************
+
+  Synopsis    [Computes bound set and shared set of the next stage.]
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+word Abc_TtFindBVarsSVars( word * pTruth, int nVars, int nRVars, int nRails, int nLutSize, int fVerbose, int * pMyu, int nJRatio )
+{
+    Abc_BSEval_t * p = Abc_BSEvalAlloc(); 
+    int nPermVars = nVars-nRVars;
+    if ( p->nVars != nPermVars ) {
+        p->nVars = nPermVars;
+        p->nLVars = nLutSize-nRVars;
+        if ( p->vPairs[p->nVars][p->nLVars] == NULL )
+            p->vPairs[p->nVars][p->nLVars] = Abc_GenChasePairs( p->nVars, p->nLVars );
+    }    
+    if ( p->nBVars != nLutSize ) {
+        if ( p->vCofs[nLutSize] == NULL )
+            p->vCofs[nLutSize] = Abc_BSEvalCreateCofactorSets( nLutSize, &p->vSets[nLutSize] );
+        if ( p->nBVars < nLutSize ) {
+            ABC_FREE( p->pPat );
+            p->pPat = ABC_ALLOC( word, (1 << nLutSize)*Abc_TtWordNum(nLutSize) );
+        }
+        p->nBVars = nLutSize;
+    }        
+
+    int v, r, nWords = Abc_TtWordNum(nVars);
+    word * pCopy = ABC_ALLOC( word, nWords );
+    Abc_TtCopy( pCopy, pTruth, nWords, 0 );
+    //word pPat[MAX_PAT_WORD_SIZE];
+
+    int pPermBest[32] = {0};
+    int pPermBest2[32] = {0};
+    word * pBest = ABC_ALLOC( word, nWords );
+    word * pBest2 = ABC_ALLOC( word, nWords );
+    //printf("Function before: "); Abc_TtPrintHexRev( stdout, pCopy, nVars ); printf( "\n" );
+    int MyuMin = Abc_BSEvalBest( p, pCopy, pBest, pBest2, nVars, nRVars, nVars-nLutSize, 0, pPermBest, pPermBest2, 0, nJRatio );
+    //printf("Function before: "); Abc_TtPrintHexRev( stdout, pCopy, nVars ); printf( "\n" );
+    if ( pMyu ) *pMyu = MyuMin;
+
+    if ( fVerbose ) {
+        printf( "Best perm: " );
+        for ( v = 0; v < nVars; v++ )
+            printf( "%d ", pPermBest[v] );
+        printf( "  Myu = %d.  ", MyuMin );
+    }
+
+    int Shared = 0, nSetSize = 0, nRailsMin = Abc_Base2Log( MyuMin );
+    for ( r = 1; r <= nRails && nRailsMin > r; r++ ) {
+        int nRailsMinNew = Abc_SharedEvalBest( p, pBest, nVars, nRVars, nVars-nLutSize, MyuMin, r, 0, &Shared, &nSetSize, p->pPat );
+        if ( nRailsMinNew < 100 )
+            nRailsMin = nRailsMinNew;
+    }
+    MyuMin = 1 << nRailsMin;
+
+    ABC_FREE( pCopy );
+    ABC_FREE( pBest );
+    ABC_FREE( pBest2 );
+    Abc_BSEvalFree(p);
+
+    if ( fVerbose )
+        printf( "Myu min = %d.  Rail min = %d. Shared = %x.\n", MyuMin, nRailsMin, Shared );
+
+    if ( nRailsMin > nRails )
+        return 0;
+
+    word mBVars = 0;
+    for ( v = 0; v < nLutSize; v++ )
+        mBVars |= (word)1 << pPermBest[nVars-nLutSize+v];
+
+    word mSVars = 0;
+    for ( v = 0; v < nLutSize; v++ )
+        if ( (Shared >> v) & 1 )
+            mSVars |= (word)1 << (nVars-nLutSize+v);
+
+    return ((word)MyuMin << 48) | (mSVars << 24) | mBVars;
+}
+
+word Abc_BSEvalEncode( int * pPermBest, int nVars, int nLutSize, int Shared, int MyuMin, int SharedSize )
+{
+    int v;
+    word mBVars = 0;
+    for ( v = 0; v < nLutSize; v++ )
+        mBVars |= (word)1 << pPermBest[nVars-nLutSize+v];
+    word mSVars = 0;
+    for ( v = 0; v < nLutSize; v++ )
+        if ( (Shared >> v) & 1 )
+            mSVars |= (word)1 << (nVars-nLutSize+v);
+    return ((word)MyuMin << 48) | (mSVars << 24) | mBVars;
+}
+
+
+/**Function*************************************************************
+
+  Synopsis    []
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+Vec_Wec_t * Abc_BSFind( Vec_Int_t * vVars, int nLutSize, int nSubsets )
+{
+    assert( Vec_IntSize(vVars) > nLutSize );
+    Vec_Wec_t * vRes = Vec_WecAlloc( nSubsets ); int i;
+    for ( i = 0; i < nSubsets; i++ ) {
+        Vec_Int_t * vNew = Vec_WecPushLevel( vRes );
+        while ( Vec_IntSize(vNew) < nLutSize )
+            Vec_IntPushUniqueOrder( vNew, Vec_IntEntry(vVars, Abc_Random(0)%Vec_IntSize(vVars)) );
+    }
+    return vRes;
+}
+Vec_Int_t * Abc_BSFindNextVars( Vec_Wec_t * vPrev, int nLutSize, int nSubsets, int nBest )
+{
+    assert( Vec_WecSize(vPrev) == nSubsets );
+    assert( Vec_IntSize(Vec_WecEntry(vPrev,0)) == nLutSize + 1 );
+    Vec_Int_t * vVars = Vec_IntAlloc( 100 );
+    Vec_Int_t * vLevel; int i, k, Var;
+    Vec_WecForEachLevelStop( vPrev, vLevel, i, nBest )
+        Vec_IntForEachEntry( vLevel, Var, k )
+            if ( k < nLutSize )
+                Vec_IntPush( vVars, Var );
+    Vec_IntUniqify( vVars );
+    return vVars;
+}
+// this procedure considers boundsets in vSets and adds CM as the last entry in each one
+void Abc_BSEvalSet( Abc_BSEval_t * p, Vec_Wec_t * vSets, word * pTruth, int nVars, int nCVars, int nLutSize )
+{
+    int nWords = Abc_TtWordNum(nVars);
+    word * pCopy = ABC_ALLOC( word, nWords );
+    Abc_TtCopy( pCopy, pTruth, nWords, 0 );
+
+    int i, k, Var, Pla2Var[32], Var2Pla[32];
+    for ( i = 0; i < nVars; i++ )
+        Pla2Var[i] = Var2Pla[i] = i;
+
+    Vec_Int_t * vLevel;
+    Vec_WecForEachLevel( vSets, vLevel, i ) {
+        assert( Vec_IntSize(vLevel) == nLutSize-nCVars );
+        Vec_IntForEachEntry( vLevel, Var, k )
+            Abc_TtMoveVar( pCopy, nVars, Var2Pla, Pla2Var, Var, nVars - nLutSize + k );
+        int MyuThis = Abc_TtGetCM( pCopy, nVars, nVars-nLutSize, p->vCounts, p->vTable, p->vStore, p->vUsed, 0 );
+        Vec_IntPush( vLevel, MyuThis ); 
+    }
+
+    for ( i = 0; i < nVars; i++ )
+        Abc_TtMoveVar( pCopy, nVars, Var2Pla, Pla2Var, i, i );
+    if ( !Abc_TtEqual(pCopy, pTruth, nWords) )
+        printf( "Internal truth table check failed.\n" ); 
+}
+void Vec_WecAppend( Vec_Wec_t * vBase, Vec_Wec_t * vNew )
+{
+    Vec_Int_t * vLevel; int i;
+    Vec_WecForEachLevel( vNew, vLevel, i )
+        Vec_IntAppend( Vec_WecPushLevel(vBase), vLevel );
+}
+Vec_Wec_t * Abc_TtFindBVars3( Abc_BSEval_t * p, word * pTruth, int nVars, int nCVars, int nRails, int nLutSize, int fVerbose, int * pMyu, int nMyuIncrease, int nSubsets, int nBest )
+{
+    Vec_Wec_t * vAllSets = Vec_WecAlloc( 1000 );
+    Vec_Wec_t * vSets = NULL; 
+    for ( int Iter = 0; Iter < 3; Iter++ ) {
+        Vec_Int_t * vVars = NULL;      
+        if ( Iter == 0  )
+            vVars = Vec_IntStartNatural( nVars-nCVars );
+        else 
+            vVars = Abc_BSFindNextVars( vSets, nLutSize-nCVars, nSubsets, nBest );
+        if ( Vec_IntSize(vVars) <= nLutSize-nCVars )
+            break;
+        Vec_WecFreeP( &vSets );
+        vSets = Abc_BSFind( vVars, nLutSize-nCVars, nSubsets );
+        Abc_BSEvalSet( p, vSets, pTruth, nVars, nCVars, nLutSize );
+        Vec_WecSortByLastInt( vSets, 0 );
+        Vec_WecAppend( vAllSets, vSets );
+        if ( 0 ) 
+        {
+            printf( "Iteration %d :\n", Iter );
+            Vec_WecPrint( vSets, 0 );
+            printf( "Variables: " );
+            Vec_IntPrint( vVars );
+            printf( "\n" );
+        }
+        Vec_IntFree( vVars );
+    }
+    Vec_WecFreeP( &vSets );
+    //Vec_WecPrint( vAllSets, 0 );
+    //Vec_WecFreeP( &vAllSets );
+    return vAllSets;
+}
+
+
+/**Function*************************************************************
+
+  Synopsis    []
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+***********************************************************************/
+Vec_Wrd_t * Abc_TtFindBVarsSVars2( Abc_BSEval_t * p, word * pTruth, int nVars, int nCVars, int nRails, int nLutSize, int fVerbose, int * pMyu, int nMyuIncrease, int nSubsets, int nBest )
+{
+//    Abc_BSEval_t * p = Abc_BSEvalAlloc(); 
+    int nFVars = nVars-nLutSize;
+    int nPermVars = nVars-nCVars;
+    int nBSets = 0;
+
+    if ( p->nVars != nPermVars ) {
+        p->nVars = nPermVars;
+        p->nLVars = nLutSize-nCVars;
+        if ( p->vPairs[p->nVars][p->nLVars] == NULL )
+            p->vPairs[p->nVars][p->nLVars] = Abc_GenChasePairs( p->nVars, p->nLVars );
+    }    
+    if ( p->nBVars != nLutSize ) {
+        if ( p->vCofs[nLutSize] == NULL )
+            p->vCofs[nLutSize] = Abc_BSEvalCreateCofactorSets( nLutSize, &p->vSets[nLutSize] );
+        if ( p->nBVars < nLutSize ) {
+            ABC_FREE( p->pPat );
+            p->pPat = ABC_ALLOC( word, (1 << nLutSize)*Abc_TtWordNum(nLutSize) );
+        }
+        p->nBVars = nLutSize;
+    }      
+
+    int nWords = Abc_TtWordNum(nVars);
+    word * pCopy = ABC_ALLOC( word, nWords );
+    Abc_TtCopy( pCopy, pTruth, nWords, 0 );
+
+    Vec_Wrd_t * vRes = Vec_WrdAlloc( 10 );
+    int i, k, Var0, Var1, Pla2Var[32], Var2Pla[32];
+    for ( i = 0; i < nVars; i++ )
+        Pla2Var[i] = Var2Pla[i] = i;
+    int MyuOrigBest  = 1 << nVars;
+    int MyuBest      = 1 << nVars;
+    int nSetSizeBest = nVars;
+
+    if ( pMyu ) *pMyu = 1 << nVars;
+    if ( nSubsets && nBest && nVars > nLutSize+1 ) {
+        Vec_Wec_t * vAllSets = Abc_TtFindBVars3( p, pTruth, nVars, nCVars, nRails, nLutSize, fVerbose, pMyu, nMyuIncrease, nSubsets, nBest );
+        Vec_WecSortByLastInt( vAllSets, 0 );
+//        Vec_IntForEachEntryDouble( p->vPairs[p->nVars][p->nLVars], Var0, Var1, i ) {
+//            int  MyuThis = Abc_TtGetCM( pCopy, nVars, nFVars, p->vCounts, p->vTable, p->vStore, p->vUsed, 0 );
+        Vec_Int_t * vLevel; int Var;
+        Vec_WecForEachLevelStop( vAllSets, vLevel, i, nBest )
+        {
+            int MyuThis = Vec_IntPop( vLevel );
+            MyuOrigBest = Abc_MinInt( MyuOrigBest, MyuThis );
+            if ( pMyu ) *pMyu = Abc_MinInt( *pMyu, MyuThis );
+
+            Vec_IntForEachEntry( vLevel, Var, k )
+                Abc_TtMoveVar( pCopy, nVars, Var2Pla, Pla2Var, Var, nVars - nLutSize + k );
+            //int  MyuThis1 = Abc_TtGetCM( pCopy, nVars, nFVars, p->vCounts, p->vTable, p->vStore, p->vUsed, 0 );
+            //assert( MyuThis1 == MyuThis );
+
+            if ( fVerbose )
+            {
+                printf( "%3d : ", i/2 );
+                for ( k = nCVars-1; k >= 0; k-- )
+                    printf( " %d", nVars-nCVars+k );
+                printf( " " );
+                for ( k = nPermVars-1; k >= nFVars; k-- )
+                    printf( " %d", Pla2Var[k] );
+                printf( " " );
+                for ( k = nFVars-1; k >= 0; k-- )
+                    printf( " %d", Pla2Var[k] );
+                printf( "  : Myu = %3d", MyuThis );
+            }
+            if ( MyuThis <= MyuOrigBest + nMyuIncrease ) {
+                int Shared = 0, nSetSize = 0;
+                if ( MyuThis > 2 ) {
+                    int SharedThis = 0, nSetSizeThis = 0;
+                    int nRailsMin = 100;
+                    for ( int r = 1; r <= nRails && nRailsMin > r; r++ ) {
+                        int nRailsMinNew = Abc_SharedEvalBest( p, pCopy, nVars, nCVars, nFVars, MyuThis, r, 0, &SharedThis, &nSetSizeThis, p->pPat );
+                        if ( nRailsMinNew < 100 )
+                            nRailsMin = nRailsMinNew;
+                    }
+                    if ( fVerbose )
+                        printf( "  RailsMyu = %3d. RailsMin = %3d. Shared = %2d. SetSize = %d.", Abc_Base2Log(MyuThis), nRailsMin, SharedThis, nSetSizeThis );
+                    if ( nRailsMin <= nRails ) {
+                        MyuThis  = 1 << nRailsMin;
+                        Shared   = SharedThis;
+                        nSetSize = nSetSizeThis;
+                    }
+                }
+                if ( MyuBest > MyuThis || (MyuBest == MyuThis && nSetSizeBest >= nSetSize) ) {
+                    int fSave = (MyuBest == MyuThis && nSetSizeBest == nSetSize);
+                    MyuBest = MyuThis;
+                    nSetSizeBest = nSetSize;
+                    word Result = Abc_BSEvalEncode( Pla2Var, nVars, nLutSize, Shared, MyuBest, nSetSize );
+                    if ( fSave ) 
+                        Vec_WrdPush( vRes, Result );
+                    else
+                        Vec_WrdFill( vRes, 1, Result );
+                    if ( fVerbose )
+                        printf( " <== best" );
+                }
+                nBSets++;
+            }        
+            if ( fVerbose )
+                printf( "\n" );
+        }
+        Vec_WecFree( vAllSets );
+    }
+    else {
+        Vec_IntForEachEntryDouble( p->vPairs[p->nVars][p->nLVars], Var0, Var1, i ) {
+            int  MyuThis = Abc_TtGetCM( pCopy, nVars, nFVars, p->vCounts, p->vTable, p->vStore, p->vUsed, 0 );
+            MyuOrigBest = Abc_MinInt( MyuOrigBest, MyuThis );
+            if ( pMyu ) *pMyu = Abc_MinInt( *pMyu, MyuThis );
+            if ( fVerbose )
+            {
+                printf( "%3d : ", i/2 );
+                for ( k = nCVars-1; k >= 0; k-- )
+                    printf( " %d", nVars-nCVars+k );
+                printf( " " );
+                for ( k = nPermVars-1; k >= nFVars; k-- )
+                    printf( " %d", Pla2Var[k] );
+                printf( " " );
+                for ( k = nFVars-1; k >= 0; k-- )
+                    printf( " %d", Pla2Var[k] );
+                printf( "  : Myu = %3d", MyuThis );
+            }
+            if ( MyuThis <= MyuOrigBest + nMyuIncrease ) {
+                int Shared = 0, nSetSize = 0;
+                if ( MyuThis > 2 ) {
+                    int SharedThis = 0, nSetSizeThis = 0;
+                    int nRailsMin = 100;
+                    for ( int r = 1; r <= nRails && nRailsMin > r; r++ ) {
+                        int nRailsMinNew = Abc_SharedEvalBest( p, pCopy, nVars, nCVars, nFVars, MyuThis, r, 0, &SharedThis, &nSetSizeThis, p->pPat );
+                        if ( nRailsMinNew < 100 )
+                            nRailsMin = nRailsMinNew;
+                    }
+                    if ( fVerbose )
+                        printf( "  RailsMyu = %3d. RailsMin = %3d. Shared = %2d. SetSize = %d.", Abc_Base2Log(MyuThis), nRailsMin, SharedThis, nSetSizeThis );
+                    if ( nRailsMin <= nRails ) {
+                        MyuThis  = 1 << nRailsMin;
+                        Shared   = SharedThis;
+                        nSetSize = nSetSizeThis;
+                    }
+                }
+                if ( MyuBest > MyuThis || (MyuBest == MyuThis && nSetSizeBest >= nSetSize) ) {
+                    int fSave = (MyuBest == MyuThis && nSetSizeBest == nSetSize);
+                    MyuBest = MyuThis;
+                    nSetSizeBest = nSetSize;
+                    word Result = Abc_BSEvalEncode( Pla2Var, nVars, nLutSize, Shared, MyuBest, nSetSize );
+                    if ( fSave ) 
+                        Vec_WrdPush( vRes, Result );
+                    else
+                        Vec_WrdFill( vRes, 1, Result );
+                    if ( fVerbose )
+                        printf( " <== best" );
+                }
+                nBSets++;
+            }        
+            if ( fVerbose )
+                printf( "\n" );
+            Abc_TtExchangeVars( pCopy, nVars, Var2Pla, Pla2Var, Var0, Var1 );
+        }
+    }
+    for ( i = 0; i < nPermVars; i++ )
+        Abc_TtMoveVar( pCopy, nVars, Var2Pla, Pla2Var, i, i );
+    if ( !Abc_TtEqual(pCopy, pTruth, nWords) )
+        printf( "Internal truth table check failed.\n" ); 
+
+//    Abc_BSEvalFree(p);
+    if ( MyuBest > (1 << nRails) ) {
+        Vec_WrdFree(vRes);
+        return NULL;
+    }
+    if ( fVerbose )
+        printf( "Tried %d bound-sets and collected %d solutions with MyuMin = %d and SharedSize = %d.\n", nBSets, Vec_WrdSize(vRes), MyuBest, nSetSizeBest );    
+    return vRes;
 }
 
 ////////////////////////////////////////////////////////////////////////
